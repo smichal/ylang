@@ -8,9 +8,9 @@ import Text.ParserCombinators.Parsec.Expr
 import Control.Applicative( (<$>), (<*>) )
 
 
+--
 -- AST
 --
--- newtype?
 newtype Program = Program [Decl] deriving Show
 
 type Ident = String
