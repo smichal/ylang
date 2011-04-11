@@ -1,16 +1,14 @@
+## Typy:
+* number
+* lista (zapisywana jako "[1 2 3]")
+* symbol (identyfikator o wielkiej pierwszej literze np. "Symbol1", "Symbol2")
 
 
-Typy:
-- number
-- lista (zapisywana jako "[1 2 3]")
-- symbol (identyfikator o wielkiej pierwszej literze np. "Symbol1", "Symbol2")
-
-
-Składnia:
-
-    sum a b = a + b
+## Składnia:
 
 Pattern matching działający dla stałych i list. (Być może nie dla zagnieżdżonych list). Np:
+
+    sum a b = a + b
 
     fact 0 = 1 ;
     fact n = n * (fact (n - 1)) ;
@@ -43,5 +41,3 @@ Let:
           (b a) + (g x) 
 
 Case:
-
-
