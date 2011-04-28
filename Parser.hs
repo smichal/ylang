@@ -18,7 +18,7 @@ type Ident = String
 data Decl = Decl Ident [Pattern] Exp deriving (Show, Eq)
 
 data Pattern
-    = PatternList [Pattern]
+    = PatternList [Pattern] -- PatternList Pattern Pattern
     | PatternVar Ident
     | PatternConst Lit
     deriving (Show, Eq)
@@ -30,7 +30,9 @@ data Exp
     | Case Exp [(Pattern, Exp)]
     | Literal Lit
     | LetIn [Decl] Exp
+    | InternalFn (Exp -> Maybe Exp)
     deriving (Show, Eq)
+    -- Cons Exp Exp
 
 data Lit
     = LitInt Integer
