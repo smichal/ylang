@@ -16,7 +16,7 @@ runEvaluator :: Evaluator -> Env -> Either String Exp
 runEvaluator evaluator env = runReader (runErrorT evaluator) env
 
 createEnviroment :: Program -> Env
-createEnviroment (Program decls) = addManyToEnv decls Map.empty
+createEnviroment (Program decls) = addManyToEnv decls internalFunctionsEnv
 
 addManyToEnv :: [Decl] -> Env -> Env
 addManyToEnv decls env = foldl addToEnv env decls
@@ -46,9 +46,14 @@ eval (App fnExp argExp) = do
   fn <- eval fnExp
   case fn of
     (Lambda argName body) -> return $ substitue argName argExp body
+    (InternalFn fn) -> do
+      evaled <- strictEval argExp
+      case fn evaled of
+        Right exp -> return exp
+        Left err -> throwError err
     otherwise ->
       --return $ App fn argExp
-      throwError ("Not a function" ++ (show fn))
+      throwError ("Not a function " ++ (show fn))
 
 eval (Var varName) = do
   value <- lookupIdent varName
@@ -60,11 +65,12 @@ eval (LetIn decls exp) = local (addManyToEnv decls) (eval exp)
 eval e = return e
 
 strictEval :: Exp -> Evaluator
-strictEval exp = do
-  evaled <- eval exp
-  if evaled == exp
-    then return exp
-    else strictEval evaled
+strictEval exp = case exp of
+  Lambda _ _   -> return exp
+  Literal _    -> return exp
+  InternalFn _ -> return exp
+  otherwise    -> strictEval =<< eval exp
+
 
 substitue :: Ident -> Exp -> Exp -> Exp
 substitue ident target exp =
@@ -85,20 +91,29 @@ expandPatterns [] exp = exp
 expandPatterns ((PatternVar ident) : rest) exp = Lambda ident $ expandPatterns rest exp
 expandPatterns (pattern : rest) exp = Lambda "_x" $ Case (Var "_x") [(pattern, expandPatterns rest exp)]
 
-tst = App (Lambda "y" (App (Var "id") (Var "y"))) (Var "x")
-tstEnv = Map.fromList [("id", Lambda "z" (Var "z")), ("x", Literal $ LitInt 42)]
 
 
 
 --
 -- Primitives
 
-
-primitives = [
-  ("+", \x -> case x of
-              (Literal (LitInt vx)) -> Just $ InternalFn $ \y -> case y of
-                (Literal (LitInt vy)) -> Just $ Literal $ LitInt (x + y)
-                _ -> Nothing
-              _ -> Nothing)
+primitives :: [(Ident, Exp -> Either String Exp)]
+primitives =
+  [ ("+", binaryIntOp (+))
+  , ("-", binaryIntOp (-))
+  , ("*", binaryIntOp (*))
+  , ("/", binaryIntOp (div))
   ]
+    where
+      binaryIntOp op (Literal (LitInt x)) = return $ InternalFn $ unaryIntOp (op x)
+      binaryIntOp _ _ = integerError
+      unaryIntOp op (Literal (LitInt x)) = return $ Literal $ LitInt (op x)
+      unaryIntOp _ _ = integerError
+      integerError = throwError "Integer function called on not a number"
 
+internalFunctionsEnv :: Env
+internalFunctionsEnv = Map.fromList $ map (\(id, fn) -> (id, InternalFn fn)) primitives
+
+
+tst = App (Lambda "y" (App (Var "id") (Var "y"))) (Var "x")
+tstEnv = Map.union internalFunctionsEnv $ Map.fromList [("id", Lambda "z" (Var "z")), ("x", Literal $ LitInt 42)]

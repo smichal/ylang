@@ -15,13 +15,13 @@ newtype Program = Program [Decl] deriving Show
 
 type Ident = String
 
-data Decl = Decl Ident [Pattern] Exp deriving (Show, Eq)
+data Decl = Decl Ident [Pattern] Exp deriving (Show)
 
 data Pattern
     = PatternList [Pattern] -- PatternList Pattern Pattern
     | PatternVar Ident
     | PatternConst Lit
-    deriving (Show, Eq)
+    deriving (Show)
 
 data Exp
     = Var Ident
@@ -30,15 +30,18 @@ data Exp
     | Case Exp [(Pattern, Exp)]
     | Literal Lit
     | LetIn [Decl] Exp
-    | InternalFn (Exp -> Maybe Exp)
-    deriving (Show, Eq)
+    | InternalFn (Exp -> Either String Exp)
+    deriving (Show)
     -- Cons Exp Exp
 
 data Lit
     = LitInt Integer
     | LitSybmol String
-    deriving (Show, Eq)
+    deriving (Show)
 
+
+instance Show (a -> b) where
+    show _ = "<fun>"
 
 
 --
