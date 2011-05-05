@@ -14,20 +14,31 @@ import Control.Applicative( (<$>) )
 t1 = parse program "" "a=1; b=2; c = let q = 41 in q+a+b"
 
 
-data Command = Declare Decl | Quit | Eval Exp deriving Show
+data Command
+  = Declare Program
+  | Quit
+  | Eval Exp
+  | LoadFile String
+  deriving Show
+
 parserInput :: Parser Command
-parserInput = declareCmd <|> quitCmd <|> evalCmd
+parserInput = declareCmd <|>  evalCmd <|> (try  quitCmd) <|> loadCmd
 
 declareCmd = do
   string "let"
   many space
-  Declare <$> declaration
+  Declare <$> program
 
 evalCmd = Eval <$> expr
 quitCmd = do
   string ":q" <|> string ":quit"
   many space
   return Quit
+
+loadCmd = do
+  string ":l"
+  many space
+  LoadFile <$> (many anyChar)
 
 processInput :: InputT (StateT Env IO) ()
 processInput = do
@@ -37,18 +48,34 @@ processInput = do
     Just "" -> processInput
     Just str -> do
       case parse parserInput "" str of
-        Left err -> outputStrLn $ show err
+        Left err -> do
+          outputStrLn $ show err
+          processInput
         Right cmd -> do
           outputStrLn $ show cmd
           case cmd of
+
             Quit -> return ()
-            Declare decl -> do
+
+            Declare (Program decls) -> do
               env <- lift get
-              lift $ put $ addToEnv env decl
+              lift $ put $ addManyToEnv decls env
+              processInput
+
             Eval exp -> do
               env <- lift get
               outputStrLn $ show $ runEvaluator (strictEval exp) env
-      processInput
+              processInput
+
+            LoadFile file -> do
+              f <- liftIO $ readFile file
+              case parse program file f of
+                Left err -> outputStrLn $ show err
+                Right (Program decls) -> do
+                  outputStrLn $ show decls
+                  env <- lift get
+                  lift $ put $ addManyToEnv decls env
+              processInput
 
 
 runRepl :: Env -> IO ()

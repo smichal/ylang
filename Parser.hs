@@ -15,12 +15,13 @@ newtype Program = Program [Decl] deriving Show
 
 type Ident = String
 
-data Decl = Decl Ident [Pattern] Exp deriving (Show)
+data Decl = Decl Ident Pattern Exp deriving (Show)
 
 data Pattern
     = PatternList [Pattern] -- PatternList Pattern Pattern
     | PatternVar Ident
     | PatternConst Lit
+    | PatternListTail Ident
     deriving (Show)
 
 data Exp
@@ -30,14 +31,14 @@ data Exp
     | Case Exp [(Pattern, Exp)]
     | Literal Lit
     | LetIn [Decl] Exp
+    | Cons Exp Exp
     | InternalFn (Exp -> Either String Exp)
     deriving (Show)
-    -- Cons Exp Exp
 
 data Lit
     = LitInt Integer
     | LitSybmol String
-    deriving (Show)
+    deriving (Show, Eq)
 
 
 instance Show (a -> b) where
@@ -50,9 +51,10 @@ instance Show (a -> b) where
 
 lexer :: P.TokenParser ()
 lexer = P.makeTokenParser (emptyDef {
-            P.identStart = lower,
-            P.reservedOpNames = ["*","/","+","-"],
-            P.reservedNames = ["let", "in", "case"] })
+            P.identStart = lower <|> (char '_') <|> (char '\''),
+            P.identLetter = alphaNum <|> oneOf ":!#$%&*+./<=>?@\\^|-~",
+            P.reservedOpNames = ["*","/","+","-", ":", "=="],
+            P.reservedNames = ["let", "in", "case", "of", "->"] })
 -- "\\" "->"
 
 
@@ -98,6 +100,28 @@ letIn = do
     e <- expr
     return $ LetIn decls e
 
+emptyListExp = Literal $ LitSybmol "Nil"
+
+list :: Parser Exp
+list = do
+    items <- brackets $ many exprWithoutApp
+    return $ foldr Cons emptyListExp items
+
+caseExpr :: Parser Exp
+caseExpr = do
+    reserved "case"
+    e <- expr
+    reserved "of"
+    opts <- sepEndBy option semi
+    return $ Case e opts
+  where
+    option :: Parser (Pattern, Exp)
+    option = do
+        p <- pattern
+        reserved "->"
+        e <- expr
+        return (p, e)
+
 
 expr :: Parser Exp
 expr = buildExpressionParser table exprWithoutInfix <?> "expression"
@@ -105,10 +129,15 @@ expr = buildExpressionParser table exprWithoutInfix <?> "expression"
 table = [[preOp "-"]
         ,[binOp "*" AssocLeft, binOp "/" AssocLeft]
         ,[binOp "+" AssocLeft, binOp "-" AssocLeft]
+        ,[consOp]
+        ,[binOp "==" AssocLeft]
+        ,[binOp "||" AssocLeft, binOp "&&" AssocLeft]
+        ,[binOp "$" AssocLeft]
         ]
         where
-          binOp s assoc = Infix (do{ reservedOp s; return (\x -> \y -> App (App (Var s) x) y)} <?> "operator") assoc
+          binOp s assoc = Infix (do{ reservedOp s; return (\x -> \y -> App (App (Var ('\'':s)) x) y)} <?> "operator") assoc
           preOp s = Prefix (do{ reservedOp s; return (\x-> App (Var s) x) })
+          consOp = Infix (do{ reservedOp ":"; return (\x -> \y -> Cons x y)} <?> "cons (:)") AssocRight
 
 
 exprWithoutInfix :: Parser Exp
@@ -124,6 +153,8 @@ exprWithoutApp = parens expr
        <|> lambda
        <|> (Literal <$> literal)
        <|> letIn
+       <|> list
+       <|> caseExpr
        <?> "expression"
 
 
@@ -147,24 +178,39 @@ pattern :: Parser Pattern
 pattern = patternList
           <|> (PatternVar <$> identifier)
           <|> (PatternConst <$> literal)
+          <|> patternListTail --XXXXX
           <?> "pattern"
 
 patternList :: Parser Pattern
 patternList = PatternList <$> (brackets $ many pattern)
+
+{-patternList = PatternList <$> brackets $ do
+    --(brackets $ many pattern)
+    patterns <- many pattern
+    patternTail <- many patternListTail
+    return $ patterns ++ patternTail
+-}
+patternListTail :: Parser Pattern
+patternListTail = do
+    symbol "&"
+    PatternListTail <$> identifier
 
 --
 -- Declations
 declaration :: Parser Decl
 declaration = do
     id <- identifier
-    pat <- many pattern
+    pats <- many pattern
     symbol "="
     ex <- expr
-    return $ Decl id pat ex
+    return $ Decl id (PatternList pats) ex
 
 --
 -- Program
 program :: Parser Program
-program = Program <$> semiSep declaration
+program = do
+    many space
+    decls <- sepEndBy declaration semi
+    return $ Program decls
 
 
