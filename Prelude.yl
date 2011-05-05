@@ -1,0 +1,37 @@
+
+ifte True  then _ = then;
+ifte False _ else = else;
+
+and True x = x;
+and _ _ = False;
+
+or False x = x;
+or _ _ = True;
+
+'&& = and;
+'|| = or;
+
+'$ f arg = f arg;
+
+head [x & xs] = x;
+tail [x & xs] = xs;
+
+map f Nil = Nil;
+map f [x & xs] = (f x) : (map f xs);
+
+
+inc x = x + 1;
+ones = 1 : ones;
+naturals = 1 : map inc naturals;
+
+
+fib 0 = 0;
+fib 1 = 1;
+fib n = (fib (n - 1)) + (fib (n - 2));
+
+tst x = case x of
+  1 -> 2;
+  2 -> 5;
+  [1 x] -> 42;
+  x -> x + 1;;
+
