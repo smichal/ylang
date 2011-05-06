@@ -10,8 +10,8 @@ import Text.ParserCombinators.Parsec
 import System.Console.Haskeline
 import Control.Monad.State
 import Control.Applicative( (<$>) )
-
-t1 = parse program "" "a=1; b=2; c = let q = 41 in q+a+b"
+import Data.List ( isPrefixOf )
+import Data.Map ( keys )
 
 
 data Command
@@ -78,8 +78,21 @@ processInput = do
               processInput
 
 
+
+replSettings = Settings {
+    historyFile = Just "repl-history",
+    autoAddHistory = True,
+    complete = let
+      comp word = do
+        env <- get
+        files <- listFiles word
+        return $ [simpleCompletion w | w <- (keys env), isPrefixOf word w] ++ files
+      in
+        completeWord Nothing " \t" comp
+  }
+
 runRepl :: Env -> IO ()
-runRepl env = evalStateT (runInputT defaultSettings processInput) env
+runRepl env = evalStateT (runInputT replSettings processInput) env
 
 main :: IO ()
 main = do
