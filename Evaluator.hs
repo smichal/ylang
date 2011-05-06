@@ -11,6 +11,9 @@ import Data.List ( find, groupBy )
 import Data.Maybe ( isJust, fromJust )
 import Control.Applicative( (<$>), (<*>) )
 
+
+import Debug.Trace
+
 type Env = Map.Map Ident Exp
 type Evaluator = ErrorT String (Reader Env)
 
@@ -63,8 +66,8 @@ expandDeclarations decls = let
 
 
 
--- f x 0 = .. XXXXXX
--- is expanding into: f = \x -> \y -> case y of 0 -> ...
+-- f x 0 = ...
+-- is expanding into: f = \x1 -> \x2 -> case [x1 x2] of [x 0] -> ...
 expandPatterns :: [(Pattern, Exp)] -> Exp
 expandPatterns options = foldr Lambda caseExp argsNames
   where
@@ -88,6 +91,8 @@ bindIdent :: Ident -> Exp -> Env -> Env
 bindIdent = Map.insert
 
 eval :: Exp -> Evaluator Exp
+
+--eval e@(App _ _) | trace (show e) False = undefined
 
 --consOp = Var ":"
 
@@ -131,7 +136,10 @@ eval (Case exp caseList) = do
         Nothing -> return Nothing
 
     matchPattern :: Pattern -> Exp -> Evaluator (Maybe (Exp -> Exp))
-    matchPattern (PatternVar ident) exp = return $ Just $ substitue ident exp
+    matchPattern (PatternVar ident) exp = do
+      e <- strictEval exp  ---XXXXXXX
+      --let e = exp
+      return $ Just $ substitue ident e
 
     matchPattern (PatternConst lit) exp = do
       e <- strictEval exp
@@ -169,6 +177,8 @@ strictEval exp = case exp of
 
 
 substitue :: Ident -> Exp -> Exp -> Exp
+substitue ident target _ | trace (">>> " ++ ident ++ " ===>> " ++ (show target)) False = undefined
+
 substitue ident target exp =
   case exp of
     Var id | id == ident -> target

@@ -82,6 +82,10 @@ processInput = do
 
 
 
+--printResult :: Exp -> InputT (StateT Env IO) ()
+--printResult exp
+
+
 replSettings = Settings {
     historyFile = Just "repl-history",
     autoAddHistory = True,
