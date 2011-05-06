@@ -4,6 +4,7 @@ import Prelude hiding (exp)
 
 import Parser
 import Evaluator
+import Printer
 
 import Text.ParserCombinators.Parsec
 
@@ -64,7 +65,9 @@ processInput = do
 
             Eval exp -> do
               env <- lift get
-              outputStrLn $ show $ runEvaluator (strictEval exp) env
+              case runEvaluator (strictEval exp) env of
+                (Right exp) -> outputStrLn $ pprint $ exp
+                (Left err) -> outputStrLn $ "Error: " ++ err
               processInput
 
             LoadFile file -> do

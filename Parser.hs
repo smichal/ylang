@@ -37,6 +37,7 @@ data Exp
 
 data Lit
     = LitInt Integer
+    | LitChar Char
     | LitSybmol String
     deriving (Show, Eq)
 
@@ -104,8 +105,11 @@ emptyListExp = Literal $ LitSybmol "Nil"
 
 list :: Parser Exp
 list = do
-    items <- brackets $ many exprWithoutApp
+    items <- listExprs <|> listChars
     return $ foldr Cons emptyListExp items
+  where
+    listExprs = brackets $ many exprWithoutApp
+    listChars = do { char '"'; s <- many (noneOf "\""); char '"'; return $ map (Literal . LitChar) s }
 
 caseExpr :: Parser Exp
 caseExpr = do
@@ -161,10 +165,17 @@ exprWithoutApp = parens expr
 --
 -- Literals
 literal :: Parser Lit
-literal = litInt <|> litSymbol
+literal = litInt <|> litChar <|> litSymbol
 
 litInt :: Parser Lit
 litInt = LitInt <$> natural <?> "nubmer"
+
+litChar :: Parser Lit
+litChar = do
+    char '\''
+    c <- anyChar
+    char '\''
+    return $ LitChar c
 
 litSymbol :: Parser Lit
 litSymbol = LitSybmol <$> do
@@ -211,6 +222,7 @@ program :: Parser Program
 program = do
     many space
     decls <- sepEndBy declaration semi
+    eof
     return $ Program decls
 
 
