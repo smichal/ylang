@@ -8,10 +8,10 @@ and _ _ = False;
 or False x = x;
 or _ _ = True;
 
-'&& = and;
-'|| = or;
+`&& = and;
+`|| = or;
 
-'$ f arg = f arg;
+`$ f arg = f arg;
 
 head [x & xs] = x;
 tail [x & xs] = xs;
@@ -34,4 +34,29 @@ tst x = case x of
   2 -> 5;
   [1 x] -> 42;
   x -> x + 1;;
+
+
+`++ []       ys = ys;
+`++ [x & xs] ys = x : xs ++ ys;
+
+nth [x & xs] 0 = x;
+nth [x & xs] n = nth xs (n - 1);
+
+`! = nth;
+
+
+rev [] a = a;
+rev [x & xs] a = rev xs (x : a);
+reverse list = rev list [];
+
+show1 prefix Nil = prefix;
+show1 prefix [a & as] = show1 (a : prefix) as;
+show list = show1 Nil (reverse list);
+
+testLetIn = let a = 1; b = 2 in a + b == 3;
+
+testLetIn2 = let
+    f x = x + 1
+  in
+    (f 41) == 42;
 

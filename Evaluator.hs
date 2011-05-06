@@ -209,11 +209,11 @@ substitue ident target exp =
 
 primitives :: [(Ident, Exp -> Either String Exp)]
 primitives =
-  [ ("'+", binaryIntOp (+))
-  , ("'-", binaryIntOp (-))
-  , ("'*", binaryIntOp (*))
-  , ("'/", binaryIntOp (div))
-  , ("'==", binaryBoolOp (==))
+  [ ("`+", binaryIntOp (+))
+  , ("`-", binaryIntOp (-))
+  , ("`*", binaryIntOp (*))
+  , ("`/", binaryIntOp (div))
+  , ("`==", binaryBoolOp (==))
   ]
     where
       binaryIntOp op (Literal (LitInt x)) = return $ InternalFn $ unaryIntOp (op x)

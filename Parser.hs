@@ -52,10 +52,14 @@ instance Show (a -> b) where
 
 lexer :: P.TokenParser ()
 lexer = P.makeTokenParser (emptyDef {
-            P.identStart = lower <|> (char '_') <|> (char '\''),
-            P.identLetter = alphaNum <|> oneOf ":!#$%&*+./<=>?@\\^|-~",
+            P.identStart = lower <|> (char '_') <|> (char '`'),
+            P.identLetter = alphaNum <|> oneOf opChars,
+            P.opStart = oneOf opChars,
+            P.opLetter = oneOf opChars,
             P.reservedOpNames = ["*","/","+","-", ":", "=="],
             P.reservedNames = ["let", "in", "case", "of", "->"] })
+    where
+        opChars = ":!#$%&*+./<=>?@\\^|-~"
 -- "\\" "->"
 
 
@@ -63,6 +67,7 @@ whiteSpace= P.whiteSpace lexer
 lexeme    = P.lexeme lexer
 integer   = P.integer lexer
 identifier= P.identifier lexer
+operator  = P.operator lexer
 reserved  = P.reserved lexer
 reservedOp= P.reservedOp lexer
 semi      = P.semi lexer -- ;
@@ -130,7 +135,7 @@ caseExpr = do
 expr :: Parser Exp
 expr = buildExpressionParser table exprWithoutInfix <?> "expression"
 
-table = [[preOp "-"]
+table = [[preOp "-", otherBinaryOperator]
         ,[binOp "*" AssocLeft, binOp "/" AssocLeft]
         ,[binOp "+" AssocLeft, binOp "-" AssocLeft]
         ,[consOp]
@@ -139,9 +144,10 @@ table = [[preOp "-"]
         ,[binOp "$" AssocLeft]
         ]
         where
-          binOp s assoc = Infix (do{ reservedOp s; return (\x -> \y -> App (App (Var ('\'':s)) x) y)} <?> "operator") assoc
+          binOp s assoc = Infix (do{ reservedOp s; return (\x -> \y -> App (App (Var ('`':s)) x) y)} <?> "operator") assoc
           preOp s = Prefix (do{ reservedOp s; return (\x-> App (Var s) x) })
           consOp = Infix (do{ reservedOp ":"; return (\x -> \y -> Cons x y)} <?> "cons (:)") AssocRight
+          otherBinaryOperator = Infix (do{ op <- operator; return (\x y -> App (App (Var ('`':op)) x) y)} <?> "binary operator") AssocLeft
 
 
 exprWithoutInfix :: Parser Exp
