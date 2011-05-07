@@ -12,13 +12,15 @@ import Data.Maybe ( isJust, fromJust )
 import Control.Applicative( (<$>), (<*>) )
 
 
+import Data.IORef
+
 import Debug.Trace
 
 type Env = Map.Map Ident Exp
-type Evaluator = ErrorT String (Reader Env)
+type Evaluator = ErrorT String (ReaderT Env IO)
 
-runEvaluator :: Evaluator Exp -> Env -> Either String Exp
-runEvaluator evaluator env = runReader (runErrorT evaluator) env
+runEvaluator :: Evaluator Exp -> Env -> IO (Either String Exp)
+runEvaluator evaluator env = runReaderT (runErrorT evaluator) env
 
 createEnviroment :: Program -> Env
 createEnviroment (Program decls) = addManyToEnv decls internalFunctionsEnv
@@ -102,7 +104,7 @@ eval :: Exp -> Evaluator Exp
 eval (App fnExp argExp) = do
   fn <- strictEval fnExp
   case fn of
-    (Lambda argName body) -> return $ substitue argName argExp body
+    (Lambda argName body) -> return =<< liftIO $ substitue argName argExp body
     (InternalFn fn) -> do
       evaled <- strictEval argExp
       case fn evaled of
@@ -117,7 +119,7 @@ eval (Var varName) = do
   return value
 
 --eval (LetIn decls exp) = local (addManyToEnv decls) (eval exp)
-eval (LetIn decls exp) = return $ foldr (\(ident, exp) -> substitue ident exp) exp subs
+eval (LetIn decls exp) = return =<< liftIO $ foldM (\ee (ident, exp) -> substitue ident exp ee) exp subs
   where
     subs = expandDeclarations decls
 
@@ -125,26 +127,26 @@ eval (LetIn decls exp) = return $ foldr (\(ident, exp) -> substitue ident exp) e
 eval (Case exp caseList) = do
     matched <- mapM tryCaseOption caseList
     case find isJust matched of
-      (Just (Just e)) -> return e
+      (Just (Just e)) -> return =<< liftIO e
       Nothing -> throwError "Non-exhaustive pattern matching"
   where
-    tryCaseOption :: (Pattern, Exp) -> Evaluator (Maybe Exp)
+    tryCaseOption :: (Pattern, Exp) -> Evaluator (Maybe (IO Exp))
     tryCaseOption (pattern, resExp) = do
       trans <- matchPattern pattern exp
       case trans of
         (Just fn) -> return $ Just $ fn resExp
         Nothing -> return Nothing
 
-    matchPattern :: Pattern -> Exp -> Evaluator (Maybe (Exp -> Exp))
+    matchPattern :: Pattern -> Exp -> Evaluator (Maybe (Exp -> IO Exp))
     matchPattern (PatternVar ident) exp = do
-      e <- strictEval exp  ---XXXXXXX
-      --let e = exp
+      --e <- strictEval exp  ---XXXXXXX
+      let e = exp
       return $ Just $ substitue ident e
 
     matchPattern (PatternConst lit) exp = do
       e <- strictEval exp
       case e of
-        (Literal lit') | lit == lit' -> return $ Just id
+        (Literal lit') | lit == lit' -> return $ Just return
         other -> return Nothing
 
     matchPattern (PatternList [(PatternListTail ident)]) exp =  return $ Just $ substitue ident exp
@@ -155,15 +157,26 @@ eval (Case exp caseList) = do
         (Cons expHead expTail) -> do
           headMatch <- matchPattern patHead expHead
           tailMatch <- matchPattern (PatternList patTail) expTail
-          return $ (.) <$> headMatch <*> tailMatch
+          return $ do
+            h <- headMatch
+            t <- tailMatch
+            return $ t >=> h
+          -- Just $ headMatch >>= tailMatch
         other -> return Nothing
 
     matchPattern (PatternList []) exp = do
       e <- strictEval exp
       case e of
-        (Literal (LitSybmol "Nil")) -> return $ Just id
+        (Literal (LitSybmol "Nil")) -> return $ Just return
         other -> return Nothing
 
+eval (EIORef r) = do
+  exp <- liftIO $ readIORef r
+  evaled <- eval exp
+  liftIO $ writeIORef r evaled
+  case evaled of
+    (EIORef _) -> throwError "dupa"
+    other ->  return evaled
 
 eval e = return e
 
@@ -176,41 +189,51 @@ strictEval exp = case exp of
   otherwise    -> strictEval =<< eval exp
 
 
-substitue :: Ident -> Exp -> Exp -> Exp
-substitue ident target _ | trace (">>> " ++ ident ++ " ===>> " ++ (show target)) False = undefined
+substitue :: Ident -> Exp -> Exp -> IO Exp
+--substitue ident target e | trace (">>> " ++ ident ++ " ==>> " ++ (show target)++ " IN " ++ (show e)) False = undefined
 
-substitue ident target exp =
+
+substitue ident target exp@(EIORef r) = do
+  exp' <- liftIO $ readIORef r
+  substitue ident target exp'
+
+substitue ident target@(EIORef _) exp =
   case exp of
-    Var id | id == ident -> target
+    Var id | id == ident -> return target
 
-    Lambda id body | id /= ident -> Lambda id (subs body)
+    Lambda id body | id /= ident -> Lambda id <$> subs body
 
-    App exp1 exp2 -> App (subs exp1) (subs exp2)
+    App exp1 exp2 -> App <$> subs exp1 <*> subs exp2
 
-    Cons exp1 exp2 -> Cons (subs exp1) (subs exp2)
+    Cons exp1 exp2 -> Cons <$> subs exp1 <*> subs exp2
 
     Case exp1 options -> let
-        fn (p,e) = if varInPattern ident p
+        fn (p,e) = do
+          se <- subs e
+          return $ if varInPattern ident p
             then (p,e)
-            else (p, subs e)
-      in Case (subs exp1) (map fn options)
+            else (p, se)
+      in Case <$> subs exp1 <*> mapM fn options
 
     LetIn decls exp -> let
-        decls' = map substitueInDecl decls
-        exp' = if any (\(Decl i _ _) -> i == ident) decls then exp else (subs exp)
-      in LetIn decls' exp'
+        decls' = mapM substitueInDecl decls
+        exp' = if any (\(Decl i _ _) -> i == ident) decls then (return exp) else (subs exp)
+      in LetIn <$> decls' <*> exp'
 
-    other -> exp
+    other -> return exp
   where
     subs = substitue ident target
     varInPattern :: Ident -> Pattern -> Bool
     varInPattern ident (PatternVar id) = id == ident
     varInPattern ident (PatternList list) = any (varInPattern ident) list
     varInPattern _ _ = False
-    substitueInDecl d@(Decl i p e) | ident == i || (varInPattern ident p) = d
-                                   | otherwise = Decl i p (subs e)
+    substitueInDecl d@(Decl i p e) | ident == i || (varInPattern ident p) = return d
+                                   | otherwise = do{ ne <- subs e; return $ Decl i p ne}
 
 
+substitue ident target exp = do
+  ref <- newIORef target
+  substitue ident (EIORef ref) exp
 
 
 

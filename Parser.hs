@@ -7,6 +7,7 @@ import Text.ParserCombinators.Parsec.Expr
 
 import Control.Applicative( (<$>), (<*>) )
 
+import Data.IORef
 
 --
 -- AST
@@ -33,6 +34,7 @@ data Exp
     | LetIn [Decl] Exp
     | Cons Exp Exp
     | InternalFn (Exp -> Either String Exp)
+    | EIORef (IORef Exp)
     deriving (Show)
 
 data Lit
@@ -45,6 +47,8 @@ data Lit
 instance Show (a -> b) where
     show _ = "<fun>"
 
+instance Show (IORef a) where
+    show _ = "<ref>"
 
 --
 -- Lexer
@@ -52,6 +56,7 @@ instance Show (a -> b) where
 
 lexer :: P.TokenParser ()
 lexer = P.makeTokenParser (emptyDef {
+            P.commentLine = "--",
             P.identStart = lower <|> (char '_') <|> (char '`'),
             P.identLetter = alphaNum <|> oneOf opChars,
             P.opStart = oneOf opChars,

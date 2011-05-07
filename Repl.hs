@@ -65,7 +65,8 @@ processInput = do
 
             Eval exp -> do
               env <- lift get
-              case runEvaluator (strictEval exp) env of
+              evalRes <- liftIO $ runEvaluator (strictEval exp) env
+              case evalRes of
                 (Right exp) -> outputStrLn $ pprint $ exp
                 (Left err) -> outputStrLn $ "Error: " ++ err
               processInput
