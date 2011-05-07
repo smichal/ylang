@@ -12,7 +12,7 @@ or _ _ = True;
 `|| = or;
 
 `$ f arg = f arg;
-`$! f arg = case arg of arg -> f arg;;
+--`$! f arg = case arg of arg -> f arg;;
 
 head [x & xs] = x;
 tail [x & xs] = xs;
@@ -43,7 +43,7 @@ tst x = case x of
 nth [x & xs] 0 = x;
 nth [x & xs] n = nth xs (n - 1);
 
-`! = nth;
+`!! = nth;
 
 take 0 _  = [];
 take _ [] = [];
@@ -53,9 +53,11 @@ rev [] a = a;
 rev [x & xs] a = rev xs (x : a);
 reverse list = rev list [];
 
-show1 prefix Nil = prefix;
-show1 prefix [a & as] = case a of a -> show1 (a : prefix) as;;
-show list = show1 Nil (reverse list);
+-- show1 prefix Nil = prefix;
+-- show1 prefix [a & as] = show1 (a :! prefix) as;
+-- show list = show1 Nil (reverse list);
+show [] = [];
+show [x & xs] = x :! (show xs);
 
 testLetIn = let a = 1; b = 2 in a + b == 3;
 
@@ -63,4 +65,6 @@ testLetIn2 = let
     f x = x + 1
   in
     (f 41) == 42;
+
+loop = loop + 1;
 

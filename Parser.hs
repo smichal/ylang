@@ -149,9 +149,9 @@ table = [[preOp "-", otherBinaryOperator]
         ,[binOp "$" AssocLeft]
         ]
         where
-          binOp s assoc = Infix (do{ reservedOp s; return (\x -> \y -> App (App (Var ('`':s)) x) y)} <?> "operator") assoc
+          binOp s assoc = Infix (do{ reservedOp s; return (\x y -> App (App (Var ('`':s)) x) y)} <?> "operator") assoc
           preOp s = Prefix (do{ reservedOp s; return (\x-> App (Var s) x) })
-          consOp = Infix (do{ reservedOp ":"; return (\x -> \y -> Cons x y)} <?> "cons (:)") AssocRight
+          consOp = Infix (do{ reservedOp ":"; return (\x y -> Cons x y)} <?> "cons (:)") AssocRight
           otherBinaryOperator = Infix (do{ op <- operator; return (\x y -> App (App (Var ('`':op)) x) y)} <?> "binary operator") AssocLeft
 
 

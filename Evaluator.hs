@@ -247,6 +247,8 @@ primitives =
   , ("`*", binaryIntOp (*))
   , ("`/", binaryIntOp (div))
   , ("`==", binaryBoolOp (==))
+  , ("`$!", strictApply)
+  , ("`:!", strictCons)
   ]
     where
       binaryIntOp op (Literal (LitInt x)) = return $ InternalFn $ unaryIntOp (op x)
@@ -257,6 +259,10 @@ primitives =
 
       binaryBoolOp op (Literal lit) = return $ InternalFn $ unaryBoolOp (op lit)
       unaryBoolOp op (Literal lit) = return $ Literal $ LitSybmol (if (op lit) then "True" else "False")
+
+      strictApply fn = return $ InternalFn (\arg -> return $ App fn arg)
+
+      strictCons head = return $ InternalFn (\tail -> return $ Cons head tail)
 
 internalFunctionsEnv :: Env
 internalFunctionsEnv = Map.fromList $ map (\(id, fn) -> (id, InternalFn fn)) primitives

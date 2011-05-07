@@ -7,7 +7,7 @@ import Parser
 
 pprint :: Exp -> String
 
-pprint (Var ident) = ident
+pprint (Var ident) = " `" ++ ident ++ "'"
 pprint (Lambda ident exp) = "λ" ++ ident ++ " → " ++ (pprint exp)
 
 pprint (Literal (LitInt a)) = ' ' : show a
