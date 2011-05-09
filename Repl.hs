@@ -1,4 +1,4 @@
-module Repl where
+module Main where
 
 import Prelude hiding (exp)
 
@@ -23,7 +23,9 @@ data Command
   deriving Show
 
 parserInput :: Parser Command
-parserInput = declareCmd <|>  evalCmd <|> (try  quitCmd) <|> loadCmd
+parserInput = do
+  many space
+  declareCmd <|>  evalCmd <|> (try  quitCmd) <|> loadCmd
 
 declareCmd = do
   string "let"
@@ -39,7 +41,7 @@ quitCmd = do
 loadCmd = do
   string ":l"
   many space
-  LoadFile <$> (many anyChar)
+  LoadFile <$> (many $ noneOf " \t")
 
 processInput :: InputT (StateT Env IO) ()
 processInput = do
