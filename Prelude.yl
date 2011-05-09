@@ -25,6 +25,7 @@ inc x = x + 1;
 ones = 1 : ones;
 naturals = 1 : map inc naturals;
 
+fix f = f (fix f);
 
 fib 0 = 0;
 fib 1 = 1;
@@ -49,9 +50,11 @@ take 0 _  = [];
 take _ [] = [];
 take n [x & xs] =  x : take (n - 1) xs;
 
-rev [] a = a;
-rev [x & xs] a = rev xs (x : a);
-reverse list = rev list [];
+reverse list = let
+    rev [] a = a;
+    rev [x & xs] a = rev xs (x : a)
+  in
+    rev list [];
 
 -- show1 prefix Nil = prefix;
 -- show1 prefix [a & as] = show1 (a :! prefix) as;
@@ -67,4 +70,18 @@ testLetIn2 = let
     (f 41) == 42;
 
 loop = loop + 1;
+
+
+
+fix-fact = fix (\rec -> \n -> ifte (n == 0) 1 (n * (rec (n - 1))));
+
+
+ff n = let
+  f 0 = 1;
+  f n = n * (f (n - 1)) in f n;
+
+t1 list = let
+  r [] = 0;
+  r [x & xs] = (r xs) + 1
+  in r list;
 

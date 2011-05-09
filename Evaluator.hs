@@ -29,31 +29,15 @@ addManyToEnv :: [Decl] -> Env -> Env
 addManyToEnv decls env = Map.union (Map.fromList $ expandDeclarations decls) env
 
 
--- add declaration to envitoment
--- when is adding:
---   f 0 = 1
---   f 1 = 3
---   f n = ..
--- it joins it to:
---   f = \x -> case x of 0 -> 1; 1 -> 3; n -> ... ;
---
---   XXX: \x -> \y -> case [x y] of ...
-{-
-addToEnv :: Env -> Decl -> Env
-addToEnv env (Decl id patterns exp) = case Map.lookup id env of
-  Just sth -> case (getCaseList expandedExp, getCaseList sth) of
-    (Just newList, Just oldList) ->
-      Map.insert id (Lambda "_x" (Case (Var "_x") (oldList ++ newList))) env
-    other -> Map.insert id expandedExp env
-  Nothing -> Map.insert id expandedExp env
-  where
-    expandedExp = expandPatterns patterns exp
-    getCaseList exp = case exp of
-      (Lambda x (Case (Var x') caseList)) | x == x' -> Just caseList
-      other -> Nothing
--}
-
-
+-- Expands set of declarations
+-- It:
+--   f 0 x = 1
+--   f 1 2 = 3
+--   f x y = ..
+--   h = 0
+-- will be transformed to:
+--   f ↦ \x -> \y -> case [x y] of [0 x] -> 1; [1 2] -> 3; [x y] -> ..
+--   h ↦ 0
 expandDeclarations :: [Decl] -> [(Ident, Exp)]
 expandDeclarations decls = let
     ident (Decl a _ _) = a
@@ -65,8 +49,6 @@ expandDeclarations decls = let
     exps = map expandPatterns bodies
   in
     zip ids exps
-
-
 
 -- f x 0 = ...
 -- is expanding into: f = \x1 -> \x2 -> case [x1 x2] of [x 0] -> ...
@@ -80,8 +62,6 @@ expandPatterns options = foldr Lambda caseExp argsNames
       options
 
 
-
-
 lookupIdent :: Ident -> Evaluator Exp
 lookupIdent ident = do
   maybeVal <- asks $ Map.lookup ident
@@ -89,17 +69,12 @@ lookupIdent ident = do
     Just exp -> return exp
     Nothing -> throwError $ "No value binded to symbol '" ++ ident ++ "'"
 
+
 bindIdent :: Ident -> Exp -> Env -> Env
 bindIdent = Map.insert
 
+
 eval :: Exp -> Evaluator Exp
-
---eval e@(App _ _) | trace (show e) False = undefined
-
---consOp = Var ":"
-
---eval e @ (Literal _) = return e
---eval e @ (App (App (Var ":") _head_) _tail_) = return e
 
 eval (App fnExp argExp) = do
   fn <- strictEval fnExp
@@ -111,17 +86,16 @@ eval (App fnExp argExp) = do
         Right exp -> return exp
         Left err -> throwError err
     otherwise ->
-      --return $ App fn argExp
       throwError ("Not a function " ++ (show fn))
 
 eval (Var varName) = do
   value <- lookupIdent varName
   return value
 
---eval (LetIn decls exp) = local (addManyToEnv decls) (eval exp)
 eval (LetIn decls exp) = return =<< liftIO $ foldM (\ee (ident, exp) -> substitue ident exp ee) exp subs
   where
-    subs = expandDeclarations decls
+    subs = map applyFixPointOperator (expandDeclarations decls)
+    applyFixPointOperator (ident, exp) = (ident, App (Var "fix") (Lambda ident exp))
 
 
 eval (Case exp caseList) = do
@@ -139,7 +113,6 @@ eval (Case exp caseList) = do
 
     matchPattern :: Pattern -> Exp -> Evaluator (Maybe (Exp -> IO Exp))
     matchPattern (PatternVar ident) exp = do
-      --e <- strictEval exp  ---XXXXXXX
       let e = exp
       return $ Just $ substitue ident e
 
@@ -161,7 +134,6 @@ eval (Case exp caseList) = do
             h <- headMatch
             t <- tailMatch
             return $ t >=> h
-          -- Just $ headMatch >>= tailMatch
         other -> return Nothing
 
     matchPattern (PatternList []) exp = do
@@ -190,12 +162,12 @@ strictEval exp = case exp of
 
 
 substitue :: Ident -> Exp -> Exp -> IO Exp
---substitue ident target e | trace (">>> " ++ ident ++ " ==>> " ++ (show target)++ " IN " ++ (show e)) False = undefined
-
 
 substitue ident target exp@(EIORef r) = do
   exp' <- liftIO $ readIORef r
-  substitue ident target exp'
+  e <- substitue ident target exp'
+  liftIO $ writeIORef r e  -- write or not?
+  return e
 
 substitue ident target@(EIORef _) exp =
   case exp of
@@ -225,6 +197,7 @@ substitue ident target@(EIORef _) exp =
     subs = substitue ident target
     varInPattern :: Ident -> Pattern -> Bool
     varInPattern ident (PatternVar id) = id == ident
+    varInPattern ident (PatternListTail id) = id == ident
     varInPattern ident (PatternList list) = any (varInPattern ident) list
     varInPattern _ _ = False
     substitueInDecl d@(Decl i p e) | ident == i || (varInPattern ident p) = return d
@@ -234,8 +207,6 @@ substitue ident target@(EIORef _) exp =
 substitue ident target exp = do
   ref <- newIORef target
   substitue ident (EIORef ref) exp
-
-
 
 --
 -- Primitives
