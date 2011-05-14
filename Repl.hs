@@ -2,11 +2,13 @@ module Main where
 
 import Prelude hiding (exp)
 
+import AST
 import Parser
 import Evaluator
+import Primitives
 import Printer
 
-import Text.ParserCombinators.Parsec
+import Text.Parsec
 
 import System.Console.Haskeline
 import Control.Monad.State
@@ -22,7 +24,7 @@ data Command
   | LoadFile String
   deriving Show
 
-parserInput :: Parser Command
+parserInput :: YParser Command
 parserInput = do
   many space
   declareCmd <|>  evalCmd <|> (try  quitCmd) <|> loadCmd
@@ -50,7 +52,7 @@ processInput = do
     Nothing -> return ()
     Just "" -> processInput
     Just str -> do
-      case parse parserInput "" str of
+      case runYParser parserInput "" str of
         Left err -> do
           outputStrLn $ show err
           processInput
@@ -75,7 +77,7 @@ processInput = do
 
             LoadFile file -> do
               f <- liftIO $ readFile file
-              case parse program file f of
+              case runYParser program file f of
                 Left err -> outputStrLn $ show err
                 Right (Program decls) -> do
                   outputStrLn $ show decls

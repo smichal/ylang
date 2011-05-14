@@ -11,13 +11,16 @@ or _ _ = True;
 `&& = and;
 `|| = or;
 
+not True = False;
+not False = True;
+
 `$ f arg = f arg;
 --`$! f arg = case arg of arg -> f arg;;
 
 head [x & xs] = x;
 tail [x & xs] = xs;
 
-map f Nil = Nil;
+map f [] = [];
 map f [x & xs] = (f x) : (map f xs);
 
 
@@ -52,7 +55,7 @@ take n [x & xs] =  x : take (n - 1) xs;
 
 reverse list = let
     rev [] a = a;
-    rev [x & xs] a = rev xs (x : a)
+    rev [x & xs] a = rev xs (x : a);
   in
     rev list [];
 
@@ -61,6 +64,7 @@ reverse list = let
 -- show list = show1 Nil (reverse list);
 show [] = [];
 show [x & xs] = x :! (show xs);
+show x = x;
 
 testLetIn = let a = 1; b = 2 in a + b == 3;
 
@@ -84,4 +88,23 @@ t1 list = let
   r [] = 0;
   r [x & xs] = (r xs) + 1
   in r list;
+
+
+`>= x y = not (x < y);
+
+filter p [] = [];
+filter p [x & xs] = ifte (p x) (x : filter p xs) (filter p xs);
+
+qsort [] = [];
+qsort [x & xs] = qsort (filter (`>= x) xs) ++ [x] ++ qsort (filter (`< x) xs);
+
+
+`>>= = bind;
+bind [Just x] f = f x;
+bind [Nothing] _ = Nothing;
+
+
+
+
+
 

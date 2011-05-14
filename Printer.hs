@@ -2,6 +2,7 @@ module Printer where
 
 import Prelude hiding (exp)
 
+import AST
 import Parser
 
 

@@ -3,6 +3,7 @@ module Evaluator where
 import Prelude hiding (exp)
 
 import Parser
+import AST
 
 import Control.Monad.Reader
 import Control.Monad.Error
@@ -10,20 +11,16 @@ import qualified Data.Map as Map
 import Data.List ( find, groupBy )
 import Data.Maybe ( isJust, fromJust )
 import Control.Applicative( (<$>), (<*>) )
-
-
 import Data.IORef
 
-import Debug.Trace
+--import Debug.Trace
+
 
 type Env = Map.Map Ident Exp
 type Evaluator = ErrorT String (ReaderT Env IO)
 
 runEvaluator :: Evaluator Exp -> Env -> IO (Either String Exp)
 runEvaluator evaluator env = runReaderT (runErrorT evaluator) env
-
-createEnviroment :: Program -> Env
-createEnviroment (Program decls) = addManyToEnv decls internalFunctionsEnv
 
 addManyToEnv :: [Decl] -> Env -> Env
 addManyToEnv decls env = Map.union (Map.fromList $ expandDeclarations decls) env
@@ -70,16 +67,16 @@ lookupIdent ident = do
     Nothing -> throwError $ "No value binded to symbol '" ++ ident ++ "'"
 
 
-bindIdent :: Ident -> Exp -> Env -> Env
-bindIdent = Map.insert
 
+returnIO :: IO a -> Evaluator a
+returnIO = return =<< liftIO
 
 eval :: Exp -> Evaluator Exp
 
 eval (App fnExp argExp) = do
   fn <- strictEval fnExp
   case fn of
-    (Lambda argName body) -> return =<< liftIO $ substitue argName argExp body
+    (Lambda argName body) -> returnIO $ substitue argName argExp body
     (InternalFn fn) -> do
       evaled <- strictEval argExp
       case fn evaled of
@@ -88,41 +85,39 @@ eval (App fnExp argExp) = do
     otherwise ->
       throwError ("Not a function " ++ (show fn))
 
-eval (Var varName) = do
-  value <- lookupIdent varName
-  return value
+eval (Var varName) = lookupIdent varName
 
-eval (LetIn decls exp) = return =<< liftIO $ foldM (\ee (ident, exp) -> substitue ident exp ee) exp subs
+eval (LetIn decls exp) = returnIO $ foldM (\ee (ident, exp) -> substitue ident exp ee) exp subs
   where
     subs = map applyFixPointOperator (expandDeclarations decls)
     applyFixPointOperator (ident, exp) = (ident, App (Var "fix") (Lambda ident exp))
 
-
 eval (Case exp caseList) = do
     matched <- mapM tryCaseOption caseList
     case find isJust matched of
-      (Just (Just e)) -> return =<< liftIO e
+      (Just (Just e)) -> returnIO e
       Nothing -> throwError "Non-exhaustive pattern matching"
   where
     tryCaseOption :: (Pattern, Exp) -> Evaluator (Maybe (IO Exp))
     tryCaseOption (pattern, resExp) = do
-      trans <- matchPattern pattern exp
-      case trans of
-        (Just fn) -> return $ Just $ fn resExp
+      transformer <- matchPattern pattern exp
+      case transformer of
+        (Just fn) -> return . Just $ fn resExp
         Nothing -> return Nothing
 
     matchPattern :: Pattern -> Exp -> Evaluator (Maybe (Exp -> IO Exp))
-    matchPattern (PatternVar ident) exp = do
-      let e = exp
-      return $ Just $ substitue ident e
 
+    -- Var matchs to ant expression
+    matchPattern (PatternVar ident) exp = return . Just $ substitue ident exp
+
+    -- Constant value matchs to the same value
     matchPattern (PatternConst lit) exp = do
       e <- strictEval exp
       case e of
         (Literal lit') | lit == lit' -> return $ Just return
         other -> return Nothing
 
-    matchPattern (PatternList [(PatternListTail ident)]) exp =  return $ Just $ substitue ident exp
+    matchPattern (PatternList [(PatternListTail ident)]) exp = return . Just $ substitue ident exp
 
     matchPattern (PatternList (patHead:patTail)) exp = do
       e <- strictEval exp
@@ -142,13 +137,12 @@ eval (Case exp caseList) = do
         (Literal (LitSybmol "Nil")) -> return $ Just return
         other -> return Nothing
 
+-- open Ref, eval inner expr, put evaled expr in Ref
 eval (EIORef r) = do
   exp <- liftIO $ readIORef r
   evaled <- eval exp
   liftIO $ writeIORef r evaled
-  case evaled of
-    (EIORef _) -> throwError "dupa"
-    other ->  return evaled
+  return evaled
 
 eval e = return e
 
@@ -161,7 +155,10 @@ strictEval exp = case exp of
   otherwise    -> strictEval =<< eval exp
 
 
-substitue :: Ident -> Exp -> Exp -> IO Exp
+substitue :: Ident  -- change occurences of this var
+          -> Exp    -- to this expression
+          -> Exp    -- in this expression
+          -> IO Exp
 
 substitue ident target exp@(EIORef r) = do
   exp' <- liftIO $ readIORef r
@@ -207,39 +204,5 @@ substitue ident target@(EIORef _) exp =
 substitue ident target exp = do
   ref <- newIORef target
   substitue ident (EIORef ref) exp
-
---
--- Primitives
-
-primitives :: [(Ident, Exp -> Either String Exp)]
-primitives =
-  [ ("`+", binaryIntOp (+))
-  , ("`-", binaryIntOp (-))
-  , ("`*", binaryIntOp (*))
-  , ("`/", binaryIntOp (div))
-  , ("`==", binaryBoolOp (==))
-  , ("`$!", strictApply)
-  , ("`:!", strictCons)
-  ]
-    where
-      binaryIntOp op (Literal (LitInt x)) = return $ InternalFn $ unaryIntOp (op x)
-      binaryIntOp _ _ = integerError
-      unaryIntOp op (Literal (LitInt x)) = return $ Literal $ LitInt (op x)
-      unaryIntOp _ _ = integerError
-      integerError = throwError "Integer function called on not a number"
-
-      binaryBoolOp op (Literal lit) = return $ InternalFn $ unaryBoolOp (op lit)
-      unaryBoolOp op (Literal lit) = return $ Literal $ LitSybmol (if (op lit) then "True" else "False")
-
-      strictApply fn = return $ InternalFn (\arg -> return $ App fn arg)
-
-      strictCons head = return $ InternalFn (\tail -> return $ Cons head tail)
-
-internalFunctionsEnv :: Env
-internalFunctionsEnv = Map.fromList $ map (\(id, fn) -> (id, InternalFn fn)) primitives
-
-
-tst = App (Lambda "y" (App (Var "id") (Var "y"))) (Var "x")
-tstEnv = Map.union internalFunctionsEnv $ Map.fromList [("id", Lambda "z" (Var "z")), ("x", Literal $ LitInt 42)]
 
 
