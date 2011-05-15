@@ -1,0 +1,46 @@
+
+
+fact-2 n = product $ take n naturals;
+
+e1 = foldl `+ 0 [1 2 3];
+
+e2 = ((`+ 2) . (`* 8)) 5;
+
+e3 = True || loop;  -- returns True
+e4 = True && loop;  -- infinity loop
+
+tst x = case x of
+  1 -> 2;
+  2 -> 5;
+  [1 x] -> 42;
+  x -> x + 1;;
+
+fix-fact = fix (\rec -> \n -> if (n == 0) 1 (n * (rec (n - 1))));
+
+ff n = let
+  f 0 = 1;
+  f n = n * (f (n - 1)) in f n;
+
+t1 list = let
+  r [] = 0;
+  r [x & xs] = (r xs) + 1
+  in r list;
+
+
+m1 = [1 2 3] >>= \x ->
+     [5 6] >>= \y ->
+     return-list [x y];
+
+m2 = [Just 13] >>= \x ->
+     [Just 29] >>= \y ->
+     return-maybe (x + y);
+
+m3 = [Just 13] >>= \x ->
+     [Nothing] >>= \y ->
+     [Just 29] >>= \z ->
+     return-maybe (x + y + z);
+
+
+
+main str = reverse str;
+

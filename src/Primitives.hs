@@ -29,7 +29,10 @@ primitives =
       integerError = throwError "Integer function called on not a number"
 
       binaryBoolOp op (Literal lit) = return $ InternalFn $ unaryBoolOp (op lit)
+      binaryBoolOp _ _ = boolError
       unaryBoolOp op (Literal lit) = return $ Literal $ LitSybmol (if (op lit) then "True" else "False")
+      unaryBoolOp _ _ = boolError
+      boolError = throwError "Invalid argument for boolean function"
 
       strictApply fn = return $ InternalFn (\arg -> return $ App fn arg)
 

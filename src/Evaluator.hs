@@ -8,12 +8,10 @@ import AST
 import Control.Monad.Reader
 import Control.Monad.Error
 import qualified Data.Map as Map
-import Data.List ( find, groupBy )
+import Data.List ( find, groupBy, sortBy )
 import Data.Maybe ( isJust, fromJust )
 import Control.Applicative( (<$>), (<*>) )
 import Data.IORef
-
---import Debug.Trace
 
 
 type Env = Map.Map Ident Exp
@@ -38,7 +36,7 @@ addManyToEnv decls env = Map.union (Map.fromList $ expandDeclarations decls) env
 expandDeclarations :: [Decl] -> [(Ident, Exp)]
 expandDeclarations decls = let
     ident (Decl a _ _) = a
-    groups = groupBy (\a b -> (ident a) == (ident b)) decls
+    groups = groupBy (\a b -> (ident a) == (ident b)) (sortBy (\a b -> compare (ident a) (ident b)) decls)
     ids :: [Ident]
     ids = map (ident . head) groups
     bodies :: [[(Pattern, Exp)]]

@@ -20,10 +20,10 @@ lexer :: P.TokenParser ()
 lexer = P.makeTokenParser (emptyDef {
     P.commentLine = "--",
     P.identStart = lower <|> (char '_') <|> (char '`'),
-    P.identLetter = alphaNum <|> oneOf opChars,
+    P.identLetter = alphaNum <|> oneOf opChars <|> (char '`'),
     P.opStart = oneOf opChars,
     P.opLetter = oneOf opChars,
-    P.reservedOpNames = ["*","/","+","-", ":", "==", "$"],
+    P.reservedOpNames = ["*","/","+","-", ":", "==", "$", "\\"],
     P.reservedNames = ["let", "in", "case", "of", "->"] })
   where
     opChars = ":!#$%&*+./<=>?@\\^|-~"
@@ -38,9 +38,6 @@ reservedOp = P.reservedOp lexer
 semi       = P.semi lexer -- ;
 parens     = P.parens lexer   -- ( )
 brackets   = P.brackets lexer -- [ ]
-
-semiSep    = P.semiSep lexer
-
 symbol    = P.symbol lexer
 natural   = P.natural lexer
 
@@ -110,6 +107,7 @@ table = [[preOp "-", otherInfixOperator, otherPrefixOperator]
         ,[binOp "==" AssocLeft]
         ,[binOp "||" AssocLeft, binOp "&&" AssocLeft]
         ,[binOp "$" AssocRight]
+        --,[otherPrefixOperator]
         ]
   where
     binOp s assoc = Infix (do{ reservedOp s; return (\x y -> App (App (Var ('`':s)) x) y)} <?> "operator") assoc

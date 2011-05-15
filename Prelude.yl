@@ -1,6 +1,8 @@
 
-ifte True  then _ = then;
-ifte False _ else = else;
+fix f = f (fix f);
+
+if True  then _ = then;
+if False _ else = else;
 
 and True x = x;
 and _ _ = False;
@@ -15,7 +17,8 @@ not True = False;
 not False = True;
 
 `$ f arg = f arg;
---`$! f arg = case arg of arg -> f arg;;
+
+`. f g x = f (g x);
 
 head [x & xs] = x;
 tail [x & xs] = xs;
@@ -23,23 +26,37 @@ tail [x & xs] = xs;
 map f [] = [];
 map f [x & xs] = (f x) : (map f xs);
 
+concat [] = [];
+concat [x & xs] = x ++ (concat xs);
+
+min [a] = a;
+min [a b & rest] = min $ if (a < b) (a : rest) (b : rest);
+
+
+
+foldl `@ ac xs = let
+    go a [] = a;
+    go a [x & xs] = go (a @ x) xs;
+  in
+    go ac xs;
+
+foldr `@ ac = let
+    go [] = ac;
+    go [x & xs] = x @ go xs;
+  in
+    go;
+
+sum = foldr `+ 0;
+product = foldr `* 1;
 
 inc x = x + 1;
 ones = 1 : ones;
 naturals = 1 : map inc naturals;
 
-fix f = f (fix f);
 
 fib 0 = 0;
 fib 1 = 1;
 fib n = (fib (n - 1)) + (fib (n - 2));
-
-tst x = case x of
-  1 -> 2;
-  2 -> 5;
-  [1 x] -> 42;
-  x -> x + 1;;
-
 
 `++ []       ys = ys;
 `++ [x & xs] ys = x : xs ++ ys;
@@ -63,8 +80,11 @@ reverse list = let
 -- show1 prefix [a & as] = show1 (a :! prefix) as;
 -- show list = show1 Nil (reverse list);
 show [] = [];
+show [[x] & xs] = [(show x)] :! (show xs);
 show [x & xs] = x :! (show xs);
 show x = x;
+
+``! = show;
 
 testLetIn = let a = 1; b = 2 in a + b == 3;
 
@@ -75,25 +95,10 @@ testLetIn2 = let
 
 loop = loop + 1;
 
-
-
-fix-fact = fix (\rec -> \n -> ifte (n == 0) 1 (n * (rec (n - 1))));
-
-
-ff n = let
-  f 0 = 1;
-  f n = n * (f (n - 1)) in f n;
-
-t1 list = let
-  r [] = 0;
-  r [x & xs] = (r xs) + 1
-  in r list;
-
-
 `>= x y = not (x < y);
 
 filter p [] = [];
-filter p [x & xs] = ifte (p x) (x : filter p xs) (filter p xs);
+filter p [x & xs] = if (p x) (x : filter p xs) (filter p xs);
 
 qsort [] = [];
 qsort [x & xs] = qsort (filter (`>= x) xs) ++ [x] ++ qsort (filter (`< x) xs);
@@ -101,7 +106,11 @@ qsort [x & xs] = qsort (filter (`>= x) xs) ++ [x] ++ qsort (filter (`< x) xs);
 
 `>>= = bind;
 bind [Just x] f = f x;
-bind [Nothing] _ = Nothing;
+bind [Nothing] _ = [Nothing];
+return-maybe x = ![Just x];
+
+bind list f = concat $ map f list;
+return-list a = [a];
 
 
 

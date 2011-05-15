@@ -27,7 +27,7 @@ data Command
 parserInput :: YParser Command
 parserInput = do
   many space
-  declareCmd <|>  evalCmd <|> (try  quitCmd) <|> loadCmd
+  (try declareCmd) <|>  evalCmd <|> (try  quitCmd) <|> loadCmd
 
 declareCmd = do
   string "let"
@@ -57,7 +57,7 @@ processInput = do
           outputStrLn $ show err
           processInput
         Right cmd -> do
-          outputStrLn $ show cmd
+          --outputStrLn $ show cmd
           case cmd of
 
             Quit -> return ()
@@ -71,7 +71,7 @@ processInput = do
               env <- lift get
               evalRes <- liftIO $ runEvaluator (strictEval exp) env
               case evalRes of
-                (Right exp) -> outputStrLn $ pprint $ exp
+                (Right exp) -> do s <- liftIO $ pprint exp; outputStrLn s
                 (Left err) -> outputStrLn $ "Error: " ++ err
               processInput
 
@@ -80,15 +80,11 @@ processInput = do
               case runYParser program file f of
                 Left err -> outputStrLn $ show err
                 Right (Program decls) -> do
-                  outputStrLn $ show decls
+                  -- outputStrLn $ show decls
                   env <- lift get
                   lift $ put $ addManyToEnv decls env
               processInput
 
-
-
---printResult :: Exp -> InputT (StateT Env IO) ()
---printResult exp
 
 
 replSettings = Settings {
