@@ -6,15 +6,20 @@
 
 * uruchanianie
 
+
     $ ./repl
 
+
 * ładowanie plików `:l nazwapliku`, np.:
+
 
     :l Prelude.yl
     :l examples.yl
 
+
 * REPL nie ładuje automatycznie pliku Prelude.yl z podstawowymi definicjami
 * REPL nie wyświetla całej zawartości leniwie obliczanych list. Do wyliczenia całej listy służy funkcja `show` (lub jej alias - operator prefiksowy `!`)
+
 
     naturals
       [ 1 <not evaled expr>]
@@ -24,6 +29,7 @@
       [ 0 1 3 4]
     qsort [1 0 3 4]
       [ 0 <not evaled expr>]
+
 
 * autouzupełnianie pod klawiszem tab, historia ↑
 
